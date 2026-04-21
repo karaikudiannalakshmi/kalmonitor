@@ -11,6 +11,7 @@ import { Card, Btn, Badge, Spinner, ProgressBar, SectionHead, Avatar, Inp } from
 import VoiceNote from '../components/VoiceNote'
 import { parseExcel } from '../utils/excelImport'
 import * as XLSX from 'xlsx'
+import { downloadTemplateWithStaff } from '../utils/templateDownload'
 
 const TABS = { MONITOR: 'monitor', UPLOAD: 'upload', STAFF: 'staff' }
 const AVATAR_COLORS = ['#8E44AD','#2980B9','#16A085','#C0392B','#D35400','#27AE60']
