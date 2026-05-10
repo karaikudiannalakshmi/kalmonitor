@@ -3,9 +3,12 @@ import * as XLSX from 'xlsx'
 
 const norm = s => (s || '').toString().trim().toLowerCase()
 
-const makeId = (staffId, date, taskText) => {
-  const safe = taskText.replace(/[^a-zA-Z0-9]/g,'').slice(0,14) || Math.random().toString(36).slice(2,10)
-  return `${staffId}_${date}_${safe}`
+// ID generator that works with Tamil text — uses index instead of task text
+const makeId = (staffId, date, taskText, index) => {
+  // Use latin chars if available, otherwise use index for uniqueness
+  const safe = taskText.replace(/[^a-zA-Z0-9]/g,'').slice(0,10)
+  const suffix = safe.length >= 3 ? safe : `task${String(index).padStart(2,'0')}`
+  return `${staffId}_${date}_${suffix}`
 }
 
 function parseTime(val) {
@@ -29,22 +32,19 @@ export async function parseMasterSchedule(file, staffList) {
         const ws   = wb.Sheets[wb.SheetNames[0]]
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
 
-        // Build name map from Firestore staff list
         const nameMap = {}
         staffList.forEach(s => { nameMap[norm(s.name)] = s })
 
         const tasks = [], errors = []
 
-        // Scan every row — if col A matches a staff name, treat it as a task row
-        // This skips ALL header/title rows automatically regardless of structure
         rows.forEach((row, idx) => {
           const staffName = (row[0] || '').toString().trim()
           if (!staffName) return
 
           const staffObj = nameMap[norm(staffName)]
-          if (!staffObj) return // silently skip non-staff rows (headers, titles)
+          if (!staffObj) return // skip header/title rows silently
 
-          // Fixed column positions: A=staff, B=task, C=time, D=type, E=active
+          // Fixed columns: A=staff, B=task, C=time, D=type, E=active
           const taskText  = (row[1] || '').toString().trim()
           const timeVal   = row[2]
           const typeRaw   = norm(row[3] || 'normal')
@@ -57,19 +57,20 @@ export async function parseMasterSchedule(file, staffList) {
           const time  = parseTime(timeVal)
 
           tasks.push({
-            staffId:    staffObj.id,
-            staffName:  staffObj.name,
-            task:       taskText,
-            startTime:  time,
-            type:       ttype,
+            staffId:   staffObj.id,
+            staffName: staffObj.name,
+            task:      taskText,
+            startTime: time,
+            type:      ttype,
             substitute: false,
-            remarks:    '',
+            remarks:   '',
+            _rowIndex: idx, // store row index for unique ID generation
           })
         })
 
         if (tasks.length === 0) {
           errors.push(
-            `No tasks found. Make sure column A has staff names exactly matching: ` +
+            `No tasks found. Column A must have staff names exactly matching: ` +
             staffList.map(s => s.name).join(', ')
           )
         }
@@ -83,10 +84,13 @@ export async function parseMasterSchedule(file, staffList) {
 }
 
 export function generateDailyTasks(masterTasks, date) {
-  return masterTasks.map(t => ({
-    ...t,
-    id:        makeId(t.staffId, date, t.task),
-    date,
-    createdAt: new Date().toISOString(),
-  }))
+  return masterTasks.map((t, index) => {
+    const { _rowIndex, ...taskData } = t
+    return {
+      ...taskData,
+      id:        makeId(t.staffId, date, t.task, _rowIndex ?? index),
+      date,
+      createdAt: new Date().toISOString(),
+    }
+  })
 }
