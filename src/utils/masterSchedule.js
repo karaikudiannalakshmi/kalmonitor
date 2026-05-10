@@ -31,73 +31,30 @@ export async function parseMasterSchedule(file, staffList) {
 
         // Build name map from Firestore staff list
         const nameMap = {}
-        staffList.forEach(s => {
-          nameMap[norm(s.name)] = s
-        })
+        staffList.forEach(s => { nameMap[norm(s.name)] = s })
 
         const tasks = [], errors = []
 
-        // Find the actual data start row — look for first row where
-        // col A matches a known staff name
-        let dataStart = -1
-        for (let i = 0; i < rows.length; i++) {
-          const cellA = norm(rows[i][0] || '')
-          if (nameMap[cellA]) { dataStart = i; break }
-        }
-
-        if (dataStart === -1) {
-          // No staff name found — report which names were tried
-          const tried = rows.slice(0,8).map(r => `"${r[0]}"`)
-          reject(new Error(
-            `Staff names not found. File column A has: ${tried.join(', ')}. ` +
-            `App staff are: ${staffList.map(s=>s.name).join(', ')}`
-          ))
-          return
-        }
-
-        // Find column positions from header row just above data
-        // Or use fixed positions: A=staff, B=task, C=time, D=type, E=active
-        const headerRow = dataStart > 0 ? rows[dataStart - 1] : []
-        const findCol = (matchers) => {
-          for (let i = 0; i < headerRow.length; i++) {
-            const h = norm(headerRow[i])
-            if (matchers.some(m => h.includes(m))) return i
-          }
-          return -1
-        }
-
-        // Try to detect columns from header, fall back to fixed positions
-        const cStaff  = Math.max(0, findCol(['staff','பணியாளர்']))
-        const cTask   = findCol(['task','பணி விவரம்','பணி']) !== -1
-                        ? findCol(['task','பணி விவரம்','பணி']) : 1
-        const cTime   = findCol(['நேரம்','time','start','usual']) !== -1
-                        ? findCol(['நேரம்','time','start','usual']) : 2
-        const cType   = findCol(['வகை','type']) !== -1
-                        ? findCol(['வகை','type']) : 3
-        const cActive = findCol(['செயல்','active']) !== -1
-                        ? findCol(['செயல்','active']) : 4
-
-        rows.slice(dataStart).forEach((row, idx) => {
-          if (row.every(c => !c)) return
-
-          const staffName = (row[cStaff] || '').toString().trim()
-          const staffObj  = nameMap[norm(staffName)]
-
+        // Scan every row — if col A matches a staff name, treat it as a task row
+        // This skips ALL header/title rows automatically regardless of structure
+        rows.forEach((row, idx) => {
+          const staffName = (row[0] || '').toString().trim()
           if (!staffName) return
-          if (!staffObj) {
-            errors.push(`வரி ${idx + dataStart + 1}: "${staffName}" — app-ல் இல்லை`)
-            return
-          }
 
-          const taskText = (row[cTask] || '').toString().trim()
+          const staffObj = nameMap[norm(staffName)]
+          if (!staffObj) return // silently skip non-staff rows (headers, titles)
+
+          // Fixed column positions: A=staff, B=task, C=time, D=type, E=active
+          const taskText  = (row[1] || '').toString().trim()
+          const timeVal   = row[2]
+          const typeRaw   = norm(row[3] || 'normal')
+          const activeRaw = norm(row[4] || 'yes')
+
           if (!taskText) return
+          if (activeRaw === 'no') return
 
-          const activeVal = cActive >= 0 ? norm(row[cActive]) : 'yes'
-          if (activeVal === 'no') return
-
-          const typeRaw = norm(row[cType] || 'normal')
-          const ttype   = typeRaw.includes('critical') ? 'critical' : 'normal'
-          const time    = parseTime(row[cTime])
+          const ttype = typeRaw.includes('critical') ? 'critical' : 'normal'
+          const time  = parseTime(timeVal)
 
           tasks.push({
             staffId:    staffObj.id,
@@ -109,6 +66,13 @@ export async function parseMasterSchedule(file, staffList) {
             remarks:    '',
           })
         })
+
+        if (tasks.length === 0) {
+          errors.push(
+            `No tasks found. Make sure column A has staff names exactly matching: ` +
+            staffList.map(s => s.name).join(', ')
+          )
+        }
 
         resolve({ tasks, errors })
       } catch (err) { reject(err) }
