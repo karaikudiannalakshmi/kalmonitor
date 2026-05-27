@@ -10,19 +10,22 @@ export function useAuth() {
   const [staffData, setStaffData] = useState(null)
 
   useEffect(() => {
-    // Check PIN session first — no Firebase needed
+    // Check PIN session immediately — no Firebase needed
     const stored = sessionStorage.getItem('kal_staff_session')
     if (stored) {
       try {
         setStaffData(JSON.parse(stored))
         setUser({ pin: true })
-        return
+        return // skip Firebase listener entirely
       } catch {
         sessionStorage.removeItem('kal_staff_session')
       }
     }
 
-    // Otherwise listen for Google login
+    // No PIN session — listen for Google auth
+    // Set null immediately so spinner doesn't block
+    setUser(null)
+
     const unsub = onAuthStateChanged(auth, async firebaseUser => {
       if (!firebaseUser || firebaseUser.isAnonymous) {
         setUser(null); setIsAdmin(false); setStaffData(null)
