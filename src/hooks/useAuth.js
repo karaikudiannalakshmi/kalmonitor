@@ -5,32 +5,42 @@ import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../firebase/config'
 
 export function useAuth() {
-  const [user,      setUser]      = useState(undefined) // undefined = loading
+  const [user,      setUser]      = useState(undefined)
   const [isAdmin,   setIsAdmin]   = useState(false)
-  const [staffData, setStaffData] = useState(null) // for PIN-logged-in staff
+  const [staffData, setStaffData] = useState(null)
 
   useEffect(() => {
-    // Check for PIN-based staff session in sessionStorage
-    const stored = sessionStorage.getItem('kal_staff_session')
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        setStaffData(parsed)
-        setUser({ uid: parsed.uid, isAnonymous: true })
-        setIsAdmin(false)
-        return
-      } catch {}
-    }
-
     const unsub = onAuthStateChanged(auth, async firebaseUser => {
       if (!firebaseUser) {
+        // Check sessionStorage for PIN staff session
+        const stored = sessionStorage.getItem('kal_staff_session')
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            setStaffData(parsed)
+            setUser({ uid: parsed.uid, isAnonymous: true })
+            setIsAdmin(false)
+            return
+          } catch {
+            sessionStorage.removeItem('kal_staff_session')
+          }
+        }
         setUser(null); setIsAdmin(false); setStaffData(null)
         return
       }
 
-      // Check if anonymous (PIN staff login via signInAnonymously)
       if (firebaseUser.isAnonymous) {
-        // Already handled by sessionStorage above
+        // Anonymous = staff PIN login
+        const stored = sessionStorage.getItem('kal_staff_session')
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            setStaffData(parsed)
+            setUser(firebaseUser)
+            setIsAdmin(false)
+            return
+          } catch {}
+        }
         setUser(firebaseUser)
         return
       }
