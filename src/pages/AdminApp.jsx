@@ -5,7 +5,7 @@ import {
   doc, setDoc, deleteDoc, getDocs, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
-import { useAuth } from '../hooks/useAuth'
+
 import { COLORS as C, today, fmtDate, timeDiff, fmtDiff, uid } from '../utils/constants'
 import { Card, Btn, Badge, Spinner, ProgressBar, SectionHead, Avatar, Inp } from '../components/UI'
 import VoiceNote from '../components/VoiceNote'
@@ -65,7 +65,7 @@ function exportCSV(tasks, logs, staffList, selDate) {
 }
 
 // ─── Top Nav ──────────────────────────────────────────────────────────────────
-function TopNav({ tab, setTab, onLogout, user }) {
+function TopNav({ tab, setTab, onLogout }) {
   const NAV = [
     { id: TABS.MONITOR, icon: '📊', label: 'Monitor' },
     { id: TABS.UPLOAD,  icon: '📤', label: 'Upload'  },
@@ -78,7 +78,7 @@ function TopNav({ tab, setTab, onLogout, user }) {
       <span style={{ fontSize: 22 }}>🍽️</span>
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 800, fontSize: 16 }}>KAL Kitchen Monitor</div>
-        <div style={{ fontSize: 11, opacity: 0.8 }}>Admin — {user?.email}</div>
+        <div style={{ fontSize: 11, opacity: 0.8 }}>Admin</div>
       </div>
       <div style={{ display: 'flex', gap: 4 }}>
         {NAV.map(n => (
@@ -755,8 +755,8 @@ function StaffTab({ staffList }) {
 }
 
 // ─── Admin App Shell ──────────────────────────────────────────────────────────
-export default function AdminApp() {
-  const { user, logout } = useAuth()
+export default function AdminApp({ onLogout }) {
+  
   const [tab,setTab]=useState(TABS.MONITOR)
   const [staffList,setStaffList]=useState([])
 
@@ -766,7 +766,7 @@ export default function AdminApp() {
 
   return (
     <div style={{ minHeight:'100vh',background:C.bg,paddingBottom:70 }}>
-      <TopNav tab={tab} setTab={setTab} onLogout={logout} user={user}/>
+      <TopNav tab={tab} setTab={setTab} onLogout={onLogout} />
       <div style={{ maxWidth:900,margin:'0 auto',padding:'18px 14px 40px' }}>
         {tab===TABS.MONITOR&&<MonitorTab staffList={staffList}/>}
         {tab===TABS.UPLOAD &&<UploadTab  staffList={staffList}/>}
@@ -782,7 +782,7 @@ export default function AdminApp() {
             <span style={{ fontSize:18 }}>{n.icon}</span><span>{n.label}</span>
           </button>
         ))}
-        <button onClick={logout} style={{ flex:1,padding:'10px 4px',border:'none',cursor:'pointer',background:'transparent',fontSize:11,color:C.muted,display:'flex',flexDirection:'column',alignItems:'center',gap:2 }}>
+        <button onClick={onLogout} style={{ flex:1,padding:'10px 4px',border:'none',cursor:'pointer',background:'transparent',fontSize:11,color:C.muted,display:'flex',flexDirection:'column',alignItems:'center',gap:2 }}>
           <span style={{ fontSize:18 }}>🚪</span><span>Logout</span>
         </button>
       </div>
