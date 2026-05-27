@@ -10,67 +10,44 @@ export function useAuth() {
   const [staffData, setStaffData] = useState(null)
 
   useEffect(() => {
+    // Check PIN session first — no Firebase needed
+    const stored = sessionStorage.getItem('kal_staff_session')
+    if (stored) {
+      try {
+        setStaffData(JSON.parse(stored))
+        setUser({ pin: true })
+        return
+      } catch {
+        sessionStorage.removeItem('kal_staff_session')
+      }
+    }
+
+    // Otherwise listen for Google login
     const unsub = onAuthStateChanged(auth, async firebaseUser => {
-      if (!firebaseUser) {
-        // Check sessionStorage for PIN staff session
-        const stored = sessionStorage.getItem('kal_staff_session')
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored)
-            setStaffData(parsed)
-            setUser({ uid: parsed.uid, isAnonymous: true })
-            setIsAdmin(false)
-            return
-          } catch {
-            sessionStorage.removeItem('kal_staff_session')
-          }
-        }
+      if (!firebaseUser || firebaseUser.isAnonymous) {
         setUser(null); setIsAdmin(false); setStaffData(null)
         return
       }
-
-      if (firebaseUser.isAnonymous) {
-        // Anonymous = staff PIN login
-        const stored = sessionStorage.getItem('kal_staff_session')
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored)
-            setStaffData(parsed)
-            setUser(firebaseUser)
-            setIsAdmin(false)
-            return
-          } catch {}
-        }
-        setUser(firebaseUser)
-        return
-      }
-
-      // Google login — check if admin
       setUser(firebaseUser)
       try {
-        const adminSnap = await getDoc(doc(db, 'admins', firebaseUser.uid))
-        setIsAdmin(adminSnap.exists())
-        setStaffData(null)
+        const snap = await getDoc(doc(db, 'admins', firebaseUser.uid))
+        setIsAdmin(snap.exists())
       } catch {
         setIsAdmin(false)
       }
     })
-
     return unsub
   }, [])
 
   const setStaffSession = (data) => {
     sessionStorage.setItem('kal_staff_session', JSON.stringify(data))
     setStaffData(data)
-    setUser({ uid: data.uid, isAnonymous: true })
-    setIsAdmin(false)
+    setUser({ pin: true })
   }
 
   const logout = async () => {
     sessionStorage.removeItem('kal_staff_session')
-    setStaffData(null)
-    setUser(null)
-    setIsAdmin(false)
+    setStaffData(null); setUser(null); setIsAdmin(false)
     try { await auth.signOut() } catch {}
   }
 
